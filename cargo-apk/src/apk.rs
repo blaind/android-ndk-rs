@@ -8,8 +8,8 @@ use ndk_build::dylibs::get_libs_search_paths;
 use ndk_build::error::NdkError;
 use ndk_build::ndk::Ndk;
 use ndk_build::target::Target;
-use std::path::PathBuf;
-use std::process::Command;
+use std::{fs::read_dir, path::PathBuf};
+use std::{path::Path, process::Command};
 
 pub struct ApkBuilder<'a> {
     cmd: &'a Subcommand,
@@ -123,6 +123,26 @@ impl<'a> ApkBuilder<'a> {
                 .collect::<Vec<_>>();
 
             apk.add_lib_recursively(&artifact, *target, libs_search_paths.as_slice())?;
+
+            if let Some(path_str) = &self.manifest.libs {
+                let path = self
+                    .cmd
+                    .manifest()
+                    .parent()
+                    .unwrap()
+                    .join(Path::new(path_str))
+                    .join(triple);
+
+                let extra_lib_files =
+                    read_dir(&path).expect(&format!("manifest.libs path {:?} was not found", path));
+
+                for extra_lib_file in extra_lib_files {
+                    let path = extra_lib_file.unwrap().path();
+                    if path.is_file() {
+                        apk.add_lib(&path, *target).unwrap();
+                    }
+                }
+            }
         }
 
         Ok(apk.align()?.sign(config.ndk.debug_key()?)?)

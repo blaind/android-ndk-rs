@@ -88,6 +88,11 @@ res = "path/to/res_folder"
 # If not specified, assets will not be included in the APK
 assets = "path/to/assets_folder"
 
+# Path to the folder containing extra dynamic libraries. Each file will be copied to `lib/[target]`
+# When looking for files, the actual lookup path will be `[libs]/[build_targets]`
+# For example, when building for x86_64-linux-android, the path below would be `my_extra_libs/x86_64-linux-android`
+libs = "my_extra_libs"
+
 # Adds application metadata to the manifest
 # Note that there can be several application_metadatas entries
 # this will add: <meta-data android:name="com.samsung.android.vr.application.mode" android:value="vr_only"/>
