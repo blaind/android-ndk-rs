@@ -1,6 +1,7 @@
 use crate::error::Error;
 use crate::manifest::Manifest;
 use cargo_subcommand::{Artifact, CrateType, Profile, Subcommand};
+use log::debug;
 use ndk_build::apk::{Apk, ApkConfig};
 use ndk_build::cargo::{cargo_ndk, VersionCode};
 use ndk_build::dylibs::get_libs_search_paths;
@@ -30,6 +31,7 @@ impl<'a> ApkBuilder<'a> {
         } else {
             vec![ndk.detect_abi().unwrap_or(Target::Arm64V8a)]
         };
+
         let build_dir = dunce::simplified(cmd.target_dir())
             .join(cmd.profile())
             .join("apk");
@@ -191,13 +193,26 @@ impl<'a> ApkBuilder<'a> {
             }
         }
 
-        Ok(apk.align()?.sign(config.ndk.debug_key()?)?)
+        let start = std::time::Instant::now();
+        let aligned_apk = apk.align()?;
+        debug!("Aligning took {:?}", start.elapsed());
+        let start = std::time::Instant::now();
+        let signed_apk = aligned_apk.sign(config.ndk.debug_key()?)?;
+        debug!("Signing took {:?}", start.elapsed());
+        Ok(signed_apk)
     }
 
     pub fn run(&self, artifact: &Artifact) -> Result<(), Error> {
+        let initial_time = std::time::Instant::now();
         let apk = self.build(artifact)?;
+        debug!("== Build took {:?}", initial_time.elapsed());
+        let start = std::time::Instant::now();
         apk.install()?;
+        debug!("== Install took {:?}", start.elapsed());
         apk.start()?;
+        let start = std::time::Instant::now();
+        debug!("== Startup took {:?}", start.elapsed());
+        debug!("= cargo apk took {:?}", initial_time.elapsed());
         Ok(())
     }
 

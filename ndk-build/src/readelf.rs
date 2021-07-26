@@ -2,9 +2,11 @@ use crate::apk::UnalignedApk;
 use crate::error::NdkError;
 use crate::target::Target;
 use std::collections::HashSet;
+use std::fs;
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::SystemTime;
 
 impl<'a> UnalignedApk<'a> {
     pub fn add_lib_recursively(
@@ -36,8 +38,11 @@ impl<'a> UnalignedApk<'a> {
         }
 
         let mut artifacts = vec![lib.to_path_buf()];
+        let mut library_artifacts: Vec<PathBuf> = Vec::new();
+
         while let Some(artifact) = artifacts.pop() {
-            self.add_lib(&artifact, target)?;
+            library_artifacts.push(artifact.clone());
+
             for need in list_needed_libs(&readelf_path, &artifact)? {
                 // c++_shared is available in the NDK but not on-device.
                 // Must be bundled with the apk if used:
@@ -57,6 +62,21 @@ impl<'a> UnalignedApk<'a> {
                     eprintln!("Shared library \"{}\" not found.", need);
                 }
             }
+        }
+
+        let mut artifacts_with_time: Vec<(PathBuf, SystemTime)> = library_artifacts
+            .into_iter()
+            .map(|artifact| {
+                let modified = fs::metadata(&artifact).unwrap().modified().unwrap();
+
+                (artifact, modified)
+            })
+            .collect();
+
+        artifacts_with_time.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+
+        for (artifact, _) in artifacts_with_time {
+            self.add_lib(&artifact, target)?;
         }
 
         Ok(())
